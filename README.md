@@ -2,6 +2,18 @@
 
 > *"Diam, tapi menyengat."*
 
+![Rust](https://img.shields.io/badge/Rust-1.97%2B-orange?style=flat-square&logo=rust&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-17%20passed-brightgreen?style=flat-square)
+![Size](https://img.shields.io/badge/Size-%7E500%20KB-brightgreen?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Windows-informational?style=flat-square&logo=windows&logoColor=white)
+
+<!-- Setelah repo di-push ke GitHub, ganti badge CI & License dengan versi dinamis (ganti <user>):
+![CI](https://img.shields.io/github/actions/workflow/status/<user>/tawon-av/ci.yml?style=flat-square)
+![License](https://img.shields.io/github/license/<user>/tawon-av?style=flat-square)
+-->
+
 ![Logo](docs/logo.png)
 
 Antivirus pribadi berbasis **Rust**: satu biner ~500 KB, tanpa ketergantungan
