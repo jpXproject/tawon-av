@@ -16,6 +16,10 @@
 
 ![Logo](docs/logo.png)
 
+![Demo scan](docs/demo-scan.png)
+
+*Scan sungguhan: file uji EICAR terdeteksi (`[BAHAYA]`), forensik sistem, dan karantina.*
+
 Antivirus pribadi berbasis **Rust**: satu biner ~500 KB, tanpa ketergantungan
 runtime, memory-safe, minim resource — nyaman dijalankan bahkan di PC berusia
 15 tahun.
@@ -101,3 +105,7 @@ pertahanan. Selalu verifikasi file sebelum restore dari karantina.
 ---
 
 **🇬🇧 English:** [README.md](README.md)
+
+---
+
+*Screenshot demo dibuat dari output asli CLI `tawon`.*

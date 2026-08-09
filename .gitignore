@@ -4,3 +4,7 @@
 # Logs & temp
 *.log
 *.tmp
+
+# Demo & local test files
+/demo_scan
+/docs/*.html

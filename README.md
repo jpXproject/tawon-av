@@ -16,6 +16,10 @@
 
 ![Logo](docs/logo.png)
 
+![Demo scan](docs/demo-scan.png)
+
+*A real scan: EICAR test file detected (`[BAHAYA]`), system forensics and quarantine in action.*
+
 A personal antivirus written in **Rust**: a single ~500 KB binary, no runtime
 dependencies, memory-safe, minimal resource usage — comfortable even on a
 15-year-old PC.
@@ -101,3 +105,7 @@ only line of defense. Always verify files before restoring from quarantine.
 ---
 
 **🇮🇩 Bahasa Indonesia:** [README.id.md](README.id.md)
+
+---
+
+*Demo screenshot generated from the real `tawon` CLI output.*
