@@ -1,0 +1,23 @@
+# ============================================================
+# TAWON - Rules kustom pengguna
+# Salin file ini ke lokasi yang ditunjukkan oleh: tawon rules
+# (biasanya C:\Users\<kamu>\.tawon\rules.txt)
+#
+# Format baris:
+#   HASH |sha256_hex_64_karakter|deskripsi      (PASTI berbahaya)
+#   HEX  |4D 5A 90 00 ?? 00|deskripsi          (signature byte, keyakinan tinggi; ?? = wildcard)
+#   TEXT!|teks yang dicari|deskripsi            (teks kritis -> BAHAYA)
+#   TEXT |teks yang dicari|deskripsi            (teks medium -> hanya menaikkan skor, bukan BAHAYA)
+#
+# Baris yang diawali # diabaikan.
+# ============================================================
+
+# Contoh: blokir berdasarkan hash
+# HASH|9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08|contoh hash berbahaya
+
+# Contoh: deteksi byte signature custom
+# HEX|E8 ?? ?? ?? ?? 8B 45 08|contoh pola byte
+
+# Contoh: teks kritis vs medium
+# TEXT!|contoh-string-sangat-jahat|jangan pernah dilewati
+# TEXT|contoh-string-cukup-curiga|cukup menaikkan skor

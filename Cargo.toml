@@ -1,0 +1,16 @@
+[package]
+name = "tawon"
+version = "0.1.0"
+edition = "2021"
+description = "Tawon - AV ringan tapi sakti: signature + heuristik scanner untuk Windows"
+license = "MIT"
+
+[dependencies]
+sha2 = "0.10"
+walkdir = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+strip = true
