@@ -5,7 +5,7 @@
 ![Rust](https://img.shields.io/badge/Rust-1.97%2B-orange?style=flat-square&logo=rust&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-17%20passed-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/Tests-26%20passed-brightgreen?style=flat-square)
 ![Size](https://img.shields.io/badge/Size-%7E500%20KB-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows-informational?style=flat-square&logo=windows&logoColor=white)
 
@@ -42,6 +42,7 @@ innocent software:
 | 🧹 **Startup & process audit** | `tawon startup` / `tawon proc` |
 | 🛡️ **Allowlist** | `tawon allow <path>` — trusted files stay quiet forever |
 | 🧪 **Self-test** | `tawon eicar` |
+| 🐝 **System tray monitor** | `scripts/TawonTray.ps1` — quiet background scans + notifications (DANGER only) |
 
 ## 🚀 Install / Build
 
@@ -67,6 +68,31 @@ tawon allow <path>                             # trust a file/folder
 tawon eicar                                    # create an EICAR test file
 ```
 
+## 🐝 System Tray Monitor (optional)
+
+For people who want background monitoring without opening a terminal — a
+lightweight tray icon at the bottom-right, true to the *"quiet unless sure"*
+philosophy:
+
+- **Auto-scans** your watched folders (default: `Downloads`, `Desktop`) every **30 min** (configurable)
+- **Icons**: wasp 🐝 (yellow = healthy) → red ⚠️ (threat found) with a notification
+- **Double-click** → scan now · **right-click menu** → quick scan, forensics, startup audit, quarantine, edit watched folders, exit
+- **No console window**, minimal RAM (starts `tawon.exe` per interval)
+
+```powershell
+# 1. Start it (via the hidden launcher, no console flash):
+wscript.exe "scripts\Start Tawon Monitor.vbs"
+
+# 2. Auto-start at login: place "Start Tawon Monitor.vbs" (or a shortcut to it)
+#    in the Startup folder:
+#    shell:startup
+
+# 3. Edit interval & watched folders:
+#    %USERPROFILE%\.tawon\monitor.conf   e.g.  interval = 60
+```
+
+Files: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (hidden launcher) · `docs/tawon.ico` + `docs/tawon-warn.ico` (icons).
+
 ## 🔧 Custom rules
 
 Edit `%USERPROFILE%\.tawon\rules.txt`:
@@ -87,9 +113,9 @@ See [COMPARISON.md](COMPARISON.md) for an honest comparison with
 
 - [x] Signature + heuristic scanner + quarantine
 - [x] System forensics, startup/process audit, allowlist, quiet mode
+- [x] System tray monitor (background, anti-false-positive)
 - [ ] Anti-rootkit / hidden process detection
 - [ ] Real-time mode (ReadDirectoryChangesW) without polling
-- [ ] Small GUI (tray) — contributors welcome
 - [ ] Public signature database (community-driven)
 
 ## ⚠️ Disclaimer

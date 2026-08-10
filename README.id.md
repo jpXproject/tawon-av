@@ -5,7 +5,7 @@
 ![Rust](https://img.shields.io/badge/Rust-1.97%2B-orange?style=flat-square&logo=rust&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-17%20passed-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/Tests-26%20passed-brightgreen?style=flat-square)
 ![Size](https://img.shields.io/badge/Size-%7E500%20KB-brightgreen?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows-informational?style=flat-square&logo=windows&logoColor=white)
 
@@ -42,6 +42,7 @@ software yang tidak berbahaya:
 | 🧹 **Audit startup & proses** | `tawon startup` / `tawon proc` |
 | 🛡️ **Allowlist** | `tawon allow <path>` — file tepercaya diam selamanya |
 | 🧪 **Self-test** | `tawon eicar` |
+| 🐝 **Monitor system tray** | `scripts/TawonTray.ps1` — scan background senyap + notifikasi (hanya BAHAYA) |
 
 ## 🚀 Install / Build
 
@@ -67,6 +68,30 @@ tawon allow <path>                             # percaya file/folder
 tawon eicar                                    # buat file uji EICAR
 ```
 
+## 🐝 Monitor System Tray (opsional)
+
+Untuk kamu yang ingin pemantauan background tanpa buka terminal — ikon tray
+ringan di kanan bawah, setia pada filosofi *"diam kalau tidak yakin"*:
+
+- **Scan otomatis** folder pantauan (default: `Downloads`, `Desktop`) tiap **30 menit** (bisa diubah)
+- **Ikon**: tawon 🐝 (kuning = sehat) → merah ⚠️ (ada ancaman) + notifikasi
+- **Klik ganda** → scan sekarang · **klik kanan** → quick scan, forensik, audit startup, karantina, edit folder pantauan, keluar
+- **Tanpa jendela konsol**, RAM minimal (memanggil `tawon.exe` per interval)
+
+```powershell
+# 1. Mulai (lewat launcher tersembunyi, tanpa kedipan konsol):
+wscript.exe "scripts\Start Tawon Monitor.vbs"
+
+# 2. Auto-start saat login: taruh "Start Tawon Monitor.vbs" (atau shortcut-nya)
+#    di folder Startup:
+#    shell:startup
+
+# 3. Ubah interval & folder pantauan:
+#    %USERPROFILE%\.tawon\monitor.conf   contoh:  interval = 60
+```
+
+File: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (launcher tersembunyi) · `docs/tawon.ico` + `docs/tawon-warn.ico` (ikon).
+
 ## 🔧 Rules kustom
 
 Edit `%USERPROFILE%\.tawon\rules.txt`:
@@ -87,9 +112,9 @@ Lihat [COMPARISON.md](COMPARISON.md) untuk perbandingan jujur dengan
 
 - [x] Scanner signature + heuristik + karantina
 - [x] Forensik sistem, audit startup/proses, allowlist, mode senyap
+- [x] Monitor system tray (background, anti-false-positive)
 - [ ] Deteksi anti-rootkit / proses tersembunyi
 - [ ] Mode real-time (ReadDirectoryChangesW) tanpa polling
-- [ ] GUI kecil (tray) — kontributor dipersilakan
 - [ ] Database signature publik (community-driven)
 
 ## ⚠️ Disclaimer
