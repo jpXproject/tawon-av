@@ -1,4 +1,4 @@
-# 🐝 Tawon — A lightweight yet potent AV
+# 🐝 Tawon — A lightweight yet potent ANTI VIRUS
 
 > *"Quiet, but it stings."*
 
@@ -135,7 +135,7 @@ TEXT|somewhat-suspicious|description       # medium → only raises the score
 ## ⚖️ Comparison
 
 See [COMPARISON.md](COMPARISON.md) for an honest comparison with
-**Smadav** (Indonesian AV) and **ClamAV** (international open-source AV).
+**Smadav** (Indonesian anti-virus) and **ClamAV** (international open-source anti-virus).
 
 ## 🗺️ Roadmap
 
@@ -149,7 +149,7 @@ See [COMPARISON.md](COMPARISON.md) for an honest comparison with
 ## ⚠️ Disclaimer
 
 Tawon is a **personal/educational** security tool, not a replacement for
-commercial AV (no cloud/ML/research team). Use it as a complement, not as your
+commercial anti-virus (no cloud/ML/research team). Use it as a complement, not as your
 only line of defense. Always verify files before restoring from quarantine.
 
 ## 📄 License

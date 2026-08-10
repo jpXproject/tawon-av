@@ -1,4 +1,4 @@
-# 🐝 Tawon — AV ringan tapi sakti
+# 🐝 Tawon — ANTI VIRUS ringan tapi sakti
 
 > *"Diam, tapi menyengat."*
 
@@ -95,7 +95,7 @@ File: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (la
 
 ## 🚫 Anti-False-Positive, by Design
 
-Kebanyakan AV menyebalkan karena salah tangkap software yang tidak
+Kebanyakan anti virus menyebalkan karena salah tangkap software yang tidak
 berbahaya. Tawon memperlakukan false positive sebagai **bug desain**, dengan
 tiga lapis pertahanan:
 
@@ -136,7 +136,7 @@ TEXT|agak-curiga|deskripsi       # medium → hanya menaikkan skor
 ## ⚖️ Perbandingan
 
 Lihat [COMPARISON.md](COMPARISON.md) untuk perbandingan jujur dengan
-**Smadav** (AV Indonesia) dan **ClamAV** (AV open-source internasional).
+**Smadav** (anti virus Indonesia) dan **ClamAV** (anti virus open-source internasional).
 
 ## 🗺️ Roadmap
 
@@ -149,7 +149,7 @@ Lihat [COMPARISON.md](COMPARISON.md) untuk perbandingan jujur dengan
 
 ## ⚠️ Disclaimer
 
-Tawon adalah alat keamanan **pribadi/edukasi**, bukan pengganti AV komersial
+Tawon adalah alat keamanan **pribadi/edukasi**, bukan pengganti anti virus komersial
 (tanpa cloud/ML/tim peneliti). Gunakan sebagai pelengkap, bukan satu-satunya
 pertahanan. Selalu verifikasi file sebelum restore dari karantina.
 
