@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use crate::rules::RuleSet;
 use crate::scanner::{scan_path, ScanOptions, Verdict};
 
-const VERSION: &str = "0.1.1";
+const VERSION: &str = "0.1.2";
 const EICAR: &str = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 
 fn main() {
