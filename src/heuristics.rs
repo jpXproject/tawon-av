@@ -275,14 +275,9 @@ pub fn double_extension(name: &str) -> bool {
         || (exe_exts.contains(&prev) && benign_exts.contains(&last))
 }
 
-/// Apakah konten terlihat seperti teks (script/plain) dan bukan data binary?
-/// Rule/heuristik teks HANYA berlaku untuk file teks: pola pendek seperti
-/// "-enc " atau "iex(" bisa muncul secara kebetulan di DLL/EXE (string library,
-/// offset, dll) dan memicu false positive. Fungsi ini memblokir itu.
-pub fn looks_like_text(data: &[u8]) -> bool {
-    let sample = &data[..data.len().min(64 * 1024)];
+fn printable_ratio(sample: &[u8]) -> f64 {
     if sample.is_empty() {
-        return true;
+        return 1.0;
     }
     let mut printable = 0usize;
     for &b in sample {
@@ -294,18 +289,49 @@ pub fn looks_like_text(data: &[u8]) -> bool {
             printable += 1;
         }
     }
-    printable * 100 >= sample.len() * 92
+    printable as f64 / sample.len() as f64
+}
+
+/// Apakah konten terlihat seperti teks (script/plain) dan bukan data binary?
+/// Rule/heuristik teks HANYA berlaku untuk file teks: pola pendek seperti
+/// "-enc " atau "iex(" bisa muncul secara kebetulan di DLL/EXE (string library,
+/// offset, dll) dan memicu false positive. Fungsi ini memblokir itu.
+pub fn looks_like_text(data: &[u8]) -> bool {
+    text_stream(data).is_some()
+}
+
+/// Ekstrak stream teks yang bisa dicari rule, atau None jika file binary.
+/// Menangani ASCII/UTF-8 biasa DAN UTF-16LE/BE (script PowerShell sering
+/// disimpan Unicode: tiap karakter diikuti byte 0x00).
+pub fn text_stream(data: &[u8]) -> Option<Vec<u8>> {
+    let sample = &data[..data.len().min(64 * 1024)];
+    if sample.is_empty() {
+        return Some(Vec::new());
+    }
+    if printable_ratio(sample) >= 0.92 {
+        return Some(sample.to_ascii_lowercase());
+    }
+    // UTF-16: banyak byte 0x00 di posisi tetap. Coba de-interleave tiap 2 byte.
+    let nuls = sample.iter().filter(|&&b| b == 0).count();
+    if nuls * 4 >= sample.len() {
+        for offset in 0usize..2 {
+            let de: Vec<u8> = sample.iter().skip(offset).step_by(2).copied().collect();
+            if printable_ratio(&de) >= 0.92 {
+                return Some(de.to_ascii_lowercase());
+            }
+        }
+    }
+    None
 }
 
 /// Indikator script berbahaya (PowerShell/cmd) dalam konten.
 /// Hanya berlaku untuk file teks (anti false-positive pada binary).
 pub fn script_indicators(data: &[u8]) -> Vec<String> {
     let mut out = Vec::new();
-    if !looks_like_text(data) {
-        return out;
-    }
     let limit = data.len().min(1024 * 1024);
-    let low = data[..limit].to_ascii_lowercase();
+    let Some(low) = text_stream(&data[..limit]) else {
+        return out;
+    };
     let needles = [
         ("-encodedcommand", "encoded PowerShell command"),
         ("-enc ", "encoded PowerShell command (short)"),
@@ -500,7 +526,6 @@ mod tests {
         assert!(!looks_like_text(&data));
         assert!(script_indicators(&data).is_empty());
     }
-
     #[test]
     fn text_content_is_text() {
         let script = b"$x = powershell -EncodedCommand abcdef\nWrite-Host hello\n";
@@ -508,6 +533,27 @@ mod tests {
         assert!(script_indicators(script)
             .iter()
             .any(|s| s.contains("encoded")));
+    }
+
+    #[test]
+    fn utf16_script_detected() {
+        // Script UTF-16LE: tiap karakter ASCII diikuti 0x00
+        let ascii = b"$x = powershell -EncodedCommand ABCDEF";
+        let mut utf16 = Vec::with_capacity(ascii.len() * 2);
+        for &b in ascii {
+            utf16.push(b);
+            utf16.push(0);
+        }
+        assert!(
+            looks_like_text(&utf16),
+            "script UTF-16 harus dikenali sebagai teks"
+        );
+        assert!(
+            script_indicators(&utf16)
+                .iter()
+                .any(|s| s.contains("encoded")),
+            "script UTF-16 dengan -EncodedCommand harus terdeteksi"
+        );
     }
 
     #[test]

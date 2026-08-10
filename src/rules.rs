@@ -107,16 +107,26 @@ impl RuleSet {
                 });
             }
         }
-        if is_text {
-            for (pat, d) in &self.text_critical {
-                if contains_ci(hay, pat.as_bytes()) {
-                    hits.push(RuleHit {
-                        desc: d.clone(),
-                        critical: true,
-                        hash: false,
-                    });
-                }
+        // Rule kritis (TEXT!): pola panjang & spesifik -> aman cocok di semua file,
+        // termasuk binary (dropper EXE berisi string ini tetap kena). Cari di data
+        // mentah (ASCII tertanam di binary) DAN di stream teks (menangkap UTF-16).
+        let text_low = crate::heuristics::text_stream(hay);
+        for (pat, d) in &self.text_critical {
+            let hit_binary = contains_ci(hay, pat.as_bytes());
+            let hit_text = text_low
+                .as_deref()
+                .map_or(false, |t| contains_ci(t, pat.as_bytes()));
+            if hit_binary || hit_text {
+                hits.push(RuleHit {
+                    desc: d.clone(),
+                    critical: true,
+                    hash: false,
+                });
             }
+        }
+        // Rule medium (TEXT): pola pendek berisiko false positive di binary
+        // (string library DLL/EXE) -> HANYA untuk file teks.
+        if is_text {
             for (pat, d) in &self.text {
                 if contains_ci(hay, pat.as_bytes()) {
                     hits.push(RuleHit {
@@ -307,5 +317,42 @@ mod tests {
             &"0".repeat(64),
         );
         assert!(hits.iter().any(|h| h.critical && h.desc.contains("EICAR")));
+    }
+
+    #[test]
+    fn critical_rule_matches_in_binary() {
+        // Dropper EXE berisi string -EncodedCommand penuh (pola panjang, tidak
+        // mungkin false positive) -> TETAP kritis meski file binary.
+        let rs = RuleSet::load(None);
+        let mut data = vec![0u8; 8192];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        data[500..515].copy_from_slice(b"-EncodedCommand");
+        let hits = rs.match_file(&data, &"0".repeat(64));
+        assert!(
+            hits.iter()
+                .any(|h| h.critical && h.desc.contains("encoded")),
+            "TEXT! di binary harus tetap kritis: {:?}",
+            hits
+        );
+    }
+
+    #[test]
+    fn utf16_script_still_matches_rules() {
+        let rs = RuleSet::load(None);
+        let ascii = b"powershell -EncodedCommand abcdef";
+        let mut utf16 = Vec::with_capacity(ascii.len() * 2);
+        for &b in ascii {
+            utf16.push(b);
+            utf16.push(0);
+        }
+        let hits = rs.match_file(&utf16, &"0".repeat(64));
+        assert!(
+            hits.iter()
+                .any(|h| h.critical && h.desc.contains("encoded")),
+            "UTF-16 dengan -EncodedCommand harus kritis: {:?}",
+            hits
+        );
     }
 }
