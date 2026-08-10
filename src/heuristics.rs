@@ -113,8 +113,24 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
     };
     // Security directory (Authenticode cert table): data directory index 4
     if let Some(dd) = dd_offset {
+        // Jumlah data directory (NumberOfRvaAndSizes) harus > 4 agar index 4 valid
+        let n_dir_off = if magic == 0x10b {
+            opt + 0x5c
+        } else {
+            opt + 0x6c
+        };
+        let n_dir = if n_dir_off + 4 <= data.len() {
+            u32::from_le_bytes([
+                data[n_dir_off],
+                data[n_dir_off + 1],
+                data[n_dir_off + 2],
+                data[n_dir_off + 3],
+            ])
+        } else {
+            0
+        };
         let sec_off = dd + 4 * 8; // index 4, tiap entry 8 byte
-        if sec_off + 8 <= data.len() {
+        if n_dir > 4 && sec_off + 8 <= data.len() {
             let cert_rva = u32::from_le_bytes([
                 data[sec_off],
                 data[sec_off + 1],
@@ -127,8 +143,8 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
                 data[sec_off + 6],
                 data[sec_off + 7],
             ]) as usize;
-            // Cert table ditunjuk via offset file, bukan RVA; valid jika ada isi
-            if cert_size > 0 && cert_rva + cert_size <= data.len() {
+            // Cert table ditunjuk via offset file, bukan RVA; sertifikat asli >= 512 B
+            if cert_rva != 0 && cert_size >= 512 && cert_rva + cert_size <= data.len() {
                 info.signed = true;
             }
         }
@@ -283,8 +299,9 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
     if data.len() > max_raw_end + 0x8000 {
         info.has_overlay = true;
     }
-    // Installer self-extracting = overlay besar itu normal
-    if detect_installer(data).is_some() {
+    // Installer self-extracting = overlay besar itu normal. Hanya berlaku untuk PE
+    // (file teks yang menyebut "NullsoftInst" bukan installer).
+    if info.is_pe && detect_installer(data).is_some() {
         info.installer = true;
     }
     info
@@ -730,6 +747,53 @@ mod tests {
             score,
             reasons
         );
+    }
+
+    #[test]
+    fn pe_security_directory_signed_flag() {
+        // PE dengan data directory[4] (Security) menunjuk tabel sertifikat -> signed
+        let mut d = vec![0u8; 0x2000];
+        d[0] = b'M';
+        d[1] = b'Z';
+        d[0x3c] = 0x40; // e_lfanew = 0x40
+        d[0x40] = b'P';
+        d[0x41] = b'E';
+        d[0x42] = 0;
+        d[0x43] = 0;
+        d[0x58] = 0x0b;
+        d[0x59] = 0x01; // magic PE32 (0x10b) di opt = e_lfanew + 24 = 0x58
+                        // NumberOfRvaAndSizes (opt+0x5c) = 8 -> index 4 valid
+        d[0x40 + 4 + 20 + 0x5c] = 8;
+        // data directory[4] (Security) di opt+0x60 + 4*8 = opt+0x80
+        let sec = 0x40 + 4 + 20 + 0x80;
+        d[sec] = 0x00;
+        d[sec + 1] = 0x10; // cert_rva = 0x1000
+        d[sec + 4] = 0x00;
+        d[sec + 5] = 0x04; // cert_size = 0x400 (1024 >= 512)
+        let info = pe_info(&d);
+        assert!(info.is_pe);
+        assert!(info.signed, "PE dengan cert table valid harus signed");
+    }
+
+    #[test]
+    fn pe_security_directory_zero_rva_not_signed() {
+        // cert_rva = 0 -> bukan signed (walaupun ada ukuran)
+        let mut d = vec![0u8; 0x2000];
+        d[0] = b'M';
+        d[1] = b'Z';
+        d[0x3c] = 0x40;
+        d[0x40] = b'P';
+        d[0x41] = b'E';
+        d[0x42] = 0;
+        d[0x43] = 0;
+        d[0x58] = 0x0b;
+        d[0x59] = 0x01; // magic PE32 di opt
+        d[0x40 + 4 + 20 + 0x5c] = 8;
+        let sec = 0x40 + 4 + 20 + 0x80;
+        d[sec + 4] = 0x00;
+        d[sec + 5] = 0x04; // size 1024 tapi rva = 0
+        let info = pe_info(&d);
+        assert!(!info.signed);
     }
 
     #[test]
