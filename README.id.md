@@ -43,6 +43,7 @@ software yang tidak berbahaya:
 | 🛡️ **Allowlist** | `tawon allow <path>` — file tepercaya diam selamanya |
 | 🧪 **Self-test** | `tawon eicar` |
 | 🐝 **Monitor system tray** | `scripts/TawonTray.ps1` — scan background senyap + notifikasi (hanya BAHAYA) |
+| 🚫 **Anti-false-positive by design** | Rule teks hanya berlaku di file teks; pola pendek (`-enc `) medium, bukan kritis; script UTF-16 tetap terdeteksi |
 
 ## 🚀 Install / Build
 
@@ -91,6 +92,35 @@ wscript.exe "scripts\Start Tawon Monitor.vbs"
 ```
 
 File: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (launcher tersembunyi) · `docs/tawon.ico` + `docs/tawon-warn.ico` (ikon).
+
+## 🚫 Anti-False-Positive, by Design
+
+Kebanyakan AV menyebalkan karena salah tangkap software yang tidak
+berbahaya. Tawon memperlakukan false positive sebagai **bug desain**, dengan
+tiga lapis pertahanan:
+
+1. **Rule teks hanya berlaku di file teks.** Pola pendek seperti `-enc ` atau
+   `iex(` bisa muncul *kebetulan* di string table DLL/EXE yang sah (mis.
+   `Qt6Network.dll`, `libcrypto-1_1-x64.dll`). Pemeriksaan `looks_like_text()`
+   (rasio byte printable dari sampel 64 KB) memblokir semua rule `TEXT`
+   (medium) pada konten binary — **tidak ada lagi BAHAYA palsu di DLL**.
+2. **Kritis berdasarkan panjang pola.** `-enc ` polos hanya *mencurigakan*
+   (menaikkan skor), sedangkan `-EncodedCommand` penuh atau cradle
+   `IEX(New-Object...)` tetap **kritis**. Pola panjang yang tidak ambigu tetap
+   dicocokkan di dalam binary — jadi dropper terkompilasi yang menyisipkan
+   string PowerShell tetap tertangkap.
+3. **Sadar UTF-16.** Malware PowerShell sering disimpan UTF-16LE (tiap
+   karakter diikuti `0x00`). `looks_like_text()` men-de-interleave UTF-16,
+   sehingga script jahat terdeteksi apa pun encoding-nya.
+
+Dipadukan dengan verdict bertingkat (hash/kritis → BAHAYA, heuristik ringan →
+hanya informasi) dan allowlist, Tawon menjaga scan tetap *diam kalau tidak
+cukup yakin*:
+
+```
+Sebelum:  NotepadNext.exe / Qt6Network.dll / libcrypto DLL → [BAHAYA]  (salah)
+Sesudah:  folder yang sama                       → 0 ancaman, 0 mencurigakan
+```
 
 ## 🔧 Rules kustom
 

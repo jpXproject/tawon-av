@@ -43,6 +43,7 @@ innocent software:
 | 🛡️ **Allowlist** | `tawon allow <path>` — trusted files stay quiet forever |
 | 🧪 **Self-test** | `tawon eicar` |
 | 🐝 **System tray monitor** | `scripts/TawonTray.ps1` — quiet background scans + notifications (DANGER only) |
+| 🚫 **Anti-false-positive by design** | Text rules only apply to text files; short patterns (`-enc `) are medium, not critical; UTF-16 scripts still detected |
 
 ## 🚀 Install / Build
 
@@ -92,6 +93,33 @@ wscript.exe "scripts\Start Tawon Monitor.vbs"
 ```
 
 Files: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (hidden launcher) · `docs/tawon.ico` + `docs/tawon-warn.ico` (icons).
+
+## 🚫 Anti-False-Positive, by Design
+
+Most AVs annoy people by flagging innocent software. Tawon treats
+false positives as a **design bug**, with three layers of defense:
+
+1. **Text rules only apply to text files.** Short patterns like `-enc ` or
+   `iex(` can appear *by coincidence* in the string tables of legit DLLs/EXEs
+   (e.g. `Qt6Network.dll`, `libcrypto-1_1-x64.dll`). A `looks_like_text()`
+   check (printable-byte ratio over a 64 KB sample) blocks all `TEXT`
+   (medium) rules on binary content — **no more false DANGER on DLLs**.
+2. **Length-aware criticality.** A bare `-enc ` is only *suspicious* (score
+   bump), while the full `-EncodedCommand` or an `IEX(New-Object...)` cradle
+   stays **critical**. Long, unambiguous patterns are still matched inside
+   binaries, so a compiled dropper embedding a PowerShell string is still
+   caught.
+3. **UTF-16 aware.** PowerShell malware is often saved as UTF-16LE (each
+   character followed by `0x00`). `looks_like_text()` de-interleaves UTF-16,
+   so malicious scripts are detected regardless of encoding.
+
+Combined with the tiered verdicts (`hash`/critical → DANGER, light heuristic →
+informational only) and the allowlist, Tawon keeps scans *quiet unless sure*:
+
+```
+Before:  NotepadNext.exe / Qt6Network.dll / libcrypto DLL → [BAHAYA]  (false)
+After:   same folder                        → 0 threats, 0 suspicious
+```
 
 ## 🔧 Custom rules
 
