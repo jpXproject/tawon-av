@@ -15,6 +15,34 @@ pub struct PeInfo {
     pub is_pe: bool,
     pub imports: Vec<String>,
     pub has_overlay: bool,
+    pub signed: bool,    // punya tabel sertifikat (Authenticode)
+    pub installer: bool, // installer self-extracting (NSIS/Inno/InstallShield/WinRAR/CAB)
+}
+
+/// Marker format installer self-extracting yang dikenal. Installer seperti ini
+/// WAJAR punya entropy tinggi + overlay besar (payload terkompresi di akhir
+/// file) — bukan tanda malware.
+pub const INSTALLER_MARKERS: &[(&str, &str)] = &[
+    ("NullsoftInst", "NSIS installer"),
+    ("Inno Setup Setup Data", "Inno Setup installer"),
+    ("InstallShield", "InstallShield installer"),
+    ("WinRAR SFX", "WinRAR SFX"),
+    ("MSCF", "CAB self-extracting"),
+    ("7-Zip SFX", "7-Zip SFX"),
+];
+
+/// Deteksi marker installer di 256 KB awal + 256 KB akhir (payload installer
+/// biasanya di overlay/akhir file).
+pub fn detect_installer(data: &[u8]) -> Option<&'static str> {
+    let head = &data[..data.len().min(256 * 1024)];
+    let tail_start = data.len().saturating_sub(256 * 1024);
+    let tail = &data[tail_start..];
+    for &(m, name) in INSTALLER_MARKERS {
+        if contains(head, m.as_bytes()) || contains(tail, m.as_bytes()) {
+            return Some(name);
+        }
+    }
+    None
 }
 
 pub fn entropy(data: &[u8]) -> f64 {
@@ -48,6 +76,8 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
         is_pe: false,
         imports: Vec::new(),
         has_overlay: false,
+        signed: false,
+        installer: false,
     };
     if data.len() < 0x40 || data[0] != b'M' || data[1] != b'Z' {
         return info;
@@ -73,7 +103,7 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
         0
     };
     let is_64 = magic == 0x20b;
-    // Data directory[1] = Import table
+    // Data directory[1] = Import table, [4] = Security (cert table)
     let dd_offset = if magic == 0x10b {
         Some(opt + 0x60)
     } else if magic == 0x20b {
@@ -81,6 +111,28 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
     } else {
         None
     };
+    // Security directory (Authenticode cert table): data directory index 4
+    if let Some(dd) = dd_offset {
+        let sec_off = dd + 4 * 8; // index 4, tiap entry 8 byte
+        if sec_off + 8 <= data.len() {
+            let cert_rva = u32::from_le_bytes([
+                data[sec_off],
+                data[sec_off + 1],
+                data[sec_off + 2],
+                data[sec_off + 3],
+            ]) as usize;
+            let cert_size = u32::from_le_bytes([
+                data[sec_off + 4],
+                data[sec_off + 5],
+                data[sec_off + 6],
+                data[sec_off + 7],
+            ]) as usize;
+            // Cert table ditunjuk via offset file, bukan RVA; valid jika ada isi
+            if cert_size > 0 && cert_rva + cert_size <= data.len() {
+                info.signed = true;
+            }
+        }
+    }
     let (imp_rva, _imp_size) = if let Some(dd) = dd_offset {
         if dd + 8 <= data.len() {
             (
@@ -230,6 +282,10 @@ pub fn pe_info(data: &[u8]) -> PeInfo {
     }
     if data.len() > max_raw_end + 0x8000 {
         info.has_overlay = true;
+    }
+    // Installer self-extracting = overlay besar itu normal
+    if detect_installer(data).is_some() {
+        info.installer = true;
     }
     info
 }
@@ -384,8 +440,12 @@ pub fn score_file(path: &str, data: &[u8], pe: &PeInfo) -> (u32, Vec<String>) {
     let mut score: u32 = 0;
     let mut reasons: Vec<String> = Vec::new();
 
+    // Installer self-extracting & file bertanda tangan digital WAJAR punya
+    // entropy tinggi + overlay besar (payload terkompresi) -> bukan tanda malware.
+    let benign_packed = pe.installer || pe.signed;
+
     let ent = entropy(data);
-    if ent > 7.2 {
+    if ent > 7.2 && !benign_packed {
         score += 20;
         reasons.push(format!(
             "entropy tinggi ({:.2}, kemungkinan terkompresi/terenkripsi)",
@@ -408,7 +468,7 @@ pub fn score_file(path: &str, data: &[u8], pe: &PeInfo) -> (u32, Vec<String>) {
             score += 30;
             reasons.push(format!("API injeksi terdeteksi: {}", joined));
         }
-        if pe.has_overlay {
+        if pe.has_overlay && !pe.installer {
             score += 15;
             reasons.push("overlay/data tambahan besar (tanda packer/append)".to_string());
         }
@@ -567,6 +627,8 @@ mod tests {
             is_pe: false,
             imports: Vec::new(),
             has_overlay: false,
+            signed: false,
+            installer: false,
         };
         let (score, reasons) = score_file("C:/x/lib.dll", &data, &pe);
         // entropy tinggi boleh menambah skor, tapi TIDAK BOLEH ada alasan script
@@ -591,6 +653,8 @@ mod tests {
             is_pe: true,
             imports: vec!["CreateRemoteThread".to_string(), "Sleep".to_string()],
             has_overlay: false,
+            signed: false,
+            installer: false,
         };
         let (score, _) = score_file("C:/x/y.exe", data, &pe_bad);
         assert!(score >= 30);
@@ -599,8 +663,94 @@ mod tests {
             is_pe: true,
             imports: vec!["Sleep".to_string()],
             has_overlay: false,
+            signed: false,
+            installer: false,
         };
         let (score2, _) = score_file("C:/x/y.exe", data, &pe_ok);
         assert!(score2 < 30);
+    }
+
+    #[test]
+    fn installer_marker_detected() {
+        let mut data = vec![0u8; 512 * 1024];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        let tail = data.len() - 50;
+        data[tail..tail + 12].copy_from_slice(b"NullsoftInst");
+        assert_eq!(detect_installer(&data), Some("NSIS installer"));
+    }
+
+    #[test]
+    fn installer_no_entropy_overlay_penalty() {
+        // Installer self-extracting: entropy tinggi + overlay = NORMAL, skor tetap rendah
+        let mut data = vec![0u8; 512 * 1024];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        let tail = data.len() - 50;
+        data[tail..tail + 12].copy_from_slice(b"NullsoftInst");
+        let pe = PeInfo {
+            is_pe: true,
+            imports: Vec::new(),
+            has_overlay: true,
+            signed: false,
+            installer: true,
+        };
+        let (score, reasons) = score_file("C:/x/setup.exe", &data, &pe);
+        assert!(
+            score < 30,
+            "installer sah tidak boleh CURIGA: skor={} reasons={:?}",
+            score,
+            reasons
+        );
+        assert!(!reasons
+            .iter()
+            .any(|r| r.contains("entropy") || r.contains("overlay")));
+    }
+
+    #[test]
+    fn signed_pe_no_entropy_penalty() {
+        // File bertanda tangan digital: entropy tinggi wajar (payload terkompresi)
+        let mut data = vec![0u8; 4096];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        let pe = PeInfo {
+            is_pe: true,
+            imports: Vec::new(),
+            has_overlay: false,
+            signed: true,
+            installer: false,
+        };
+        let (score, reasons) = score_file("C:/x/app.exe", &data, &pe);
+        assert!(
+            score < 30,
+            "file signed tidak boleh CURIGA dari entropy saja: skor={} reasons={:?}",
+            score,
+            reasons
+        );
+    }
+
+    #[test]
+    fn unsigned_packed_pe_still_suspicious() {
+        // Malware packed: unsigned + entropy tinggi + overlay -> tetap CURIGA
+        let mut data = vec![0u8; 4096];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        let pe = PeInfo {
+            is_pe: true,
+            imports: Vec::new(),
+            has_overlay: true,
+            signed: false,
+            installer: false,
+        };
+        let (score, _) = score_file("C:/x/packed.exe", &data, &pe);
+        assert!(
+            score >= 30,
+            "packed unsigned harus tetap mencurigakan: {}",
+            score
+        );
     }
 }

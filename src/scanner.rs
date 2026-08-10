@@ -153,6 +153,15 @@ fn is_skip_path(normalized: &str) -> bool {
     if normalized.contains("/.tawon/") {
         return true; // folder kerja sendiri
     }
+    // Build artifacts Cargo (target/debug, target/release, target/incremental):
+    // berisi string rules bawaan Tawon di dalam binary debug -> self false-positive.
+    // Folder ini selalu di-generate ulang, bukan area risiko.
+    if normalized.contains("/target/debug/")
+        || normalized.contains("/target/release/")
+        || normalized.contains("/target/incremental/")
+    {
+        return true;
+    }
     // Jangan pindai biner Tawon sendiri (berisi string rules -> false positive)
     if let Some(name) = normalized.rsplit('/').next() {
         if name == "tawon.exe" {
