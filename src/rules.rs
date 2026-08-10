@@ -83,6 +83,9 @@ impl RuleSet {
     }
 
     /// Kembalikan daftar rule yang cocok pada file.
+    /// Rule teks (TEXT/TEXT!) HANYA dicocokkan pada file teks: pola pendek
+    /// seperti "-enc " atau API injection bisa muncul kebetulan di binary
+    /// (string library DLL/EXE) -> anti false positive.
     pub fn match_file(&self, data: &[u8], sha: &str) -> Vec<RuleHit> {
         let mut hits = Vec::new();
         if let Some(d) = self.hashes.get(sha) {
@@ -94,6 +97,7 @@ impl RuleSet {
         }
         let limit = data.len().min(4 * 1024 * 1024);
         let hay = &data[..limit];
+        let is_text = crate::heuristics::looks_like_text(hay);
         for (pat, d) in &self.hex {
             if match_hex(hay, pat) {
                 hits.push(RuleHit {
@@ -103,22 +107,24 @@ impl RuleSet {
                 });
             }
         }
-        for (pat, d) in &self.text_critical {
-            if contains_ci(hay, pat.as_bytes()) {
-                hits.push(RuleHit {
-                    desc: d.clone(),
-                    critical: true,
-                    hash: false,
-                });
+        if is_text {
+            for (pat, d) in &self.text_critical {
+                if contains_ci(hay, pat.as_bytes()) {
+                    hits.push(RuleHit {
+                        desc: d.clone(),
+                        critical: true,
+                        hash: false,
+                    });
+                }
             }
-        }
-        for (pat, d) in &self.text {
-            if contains_ci(hay, pat.as_bytes()) {
-                hits.push(RuleHit {
-                    desc: d.clone(),
-                    critical: false,
-                    hash: false,
-                });
+            for (pat, d) in &self.text {
+                if contains_ci(hay, pat.as_bytes()) {
+                    hits.push(RuleHit {
+                        desc: d.clone(),
+                        critical: false,
+                        hash: false,
+                    });
+                }
             }
         }
         hits
@@ -203,9 +209,11 @@ TEXT|VirtualAllocEx|PE injection API
 TEXT|WriteProcessMemory|proses memory write (injection)
 TEXT|NtUnmapViewOfSection|process hollowing primitive
 TEXT|QueueUserAPC|APC injection primitive
-# PowerShell abuse - KRITIS
+# PowerShell abuse
+# -EncodedCommand penuh = KRITIS (tidak muncul kebetulan di binary)
+# -enc pendek = MEDIUM (bisa muncul di script sah; cukup CURIGA, BAHAYA butuh bukti lain)
 TEXT!|-EncodedCommand|PowerShell encoded command
-TEXT!|-enc |PowerShell encoded command (short)
+TEXT|-enc |PowerShell encoded command (short)
 TEXT!|IEX(New-Object Net.WebClient).DownloadString|PowerShell download cradle
 TEXT|FromBase64String|base64 decoding in script
 TEXT|powershell.exe -w hidden|hidden PowerShell execution
@@ -260,5 +268,44 @@ mod tests {
     fn contains_ci_works() {
         assert!(contains_ci(b"Hello WORLD", b"world"));
         assert!(!contains_ci(b"Hello", b"world"));
+    }
+
+    #[test]
+    fn binary_with_short_enc_not_flagged() {
+        // DLL/binary berisi "-enc " secara kebetulan -> TIDAK boleh terflag
+        let rs = RuleSet::load(None);
+        let mut data = vec![0u8; 4096];
+        // isi dengan byte binary acak-ish + selipkan string pendek
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        data[100..105].copy_from_slice(b"-enc ");
+        let hits = rs.match_file(&data, &"0".repeat(64));
+        assert!(
+            !hits.iter().any(|h| h.critical),
+            "binary dengan '-enc ' tidak boleh kritis: {:?}",
+            hits
+        );
+    }
+
+    #[test]
+    fn text_script_with_enc_medium_only() {
+        // Script teks dengan "-enc " = hanya CURIGA (medium), bukan BAHAYA
+        let rs = RuleSet::load(None);
+        let script = b"$cmd = powershell -enc SQBFAFgA \n";
+        let hits = rs.match_file(script, &"0".repeat(64));
+        let enc = hits.iter().find(|h| h.desc.contains("encoded"));
+        assert!(enc.is_some(), "-enc di script teks harus terdeteksi");
+        assert!(!enc.unwrap().critical, "-enc pendek = medium, bukan kritis");
+    }
+
+    #[test]
+    fn eicar_still_critical_in_text() {
+        let rs = RuleSet::load(None);
+        let hits = rs.match_file(
+            b"prefix X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H* suffix",
+            &"0".repeat(64),
+        );
+        assert!(hits.iter().any(|h| h.critical && h.desc.contains("EICAR")));
     }
 }

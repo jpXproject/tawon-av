@@ -275,14 +275,40 @@ pub fn double_extension(name: &str) -> bool {
         || (exe_exts.contains(&prev) && benign_exts.contains(&last))
 }
 
+/// Apakah konten terlihat seperti teks (script/plain) dan bukan data binary?
+/// Rule/heuristik teks HANYA berlaku untuk file teks: pola pendek seperti
+/// "-enc " atau "iex(" bisa muncul secara kebetulan di DLL/EXE (string library,
+/// offset, dll) dan memicu false positive. Fungsi ini memblokir itu.
+pub fn looks_like_text(data: &[u8]) -> bool {
+    let sample = &data[..data.len().min(64 * 1024)];
+    if sample.is_empty() {
+        return true;
+    }
+    let mut printable = 0usize;
+    for &b in sample {
+        // printable ASCII, tab/newline/CR, atau byte UTF-8 multi-byte (>= 0x80)
+        if (0x20..=0x7e).contains(&b)
+            || matches!(b, b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+            || b >= 0x80
+        {
+            printable += 1;
+        }
+    }
+    printable * 100 >= sample.len() * 92
+}
+
 /// Indikator script berbahaya (PowerShell/cmd) dalam konten.
+/// Hanya berlaku untuk file teks (anti false-positive pada binary).
 pub fn script_indicators(data: &[u8]) -> Vec<String> {
     let mut out = Vec::new();
+    if !looks_like_text(data) {
+        return out;
+    }
     let limit = data.len().min(1024 * 1024);
     let low = data[..limit].to_ascii_lowercase();
     let needles = [
         ("-encodedcommand", "encoded PowerShell command"),
-        ("-enc ", "encoded PowerShell command"),
+        ("-enc ", "encoded PowerShell command (short)"),
         ("frombase64string", "base64 decoding in script"),
         (
             "iex(new-object net.webclient).downloadstring",
@@ -463,6 +489,53 @@ mod tests {
         d[0xc2] = 0;
         d[0xc3] = 0;
         assert!(embedded_pe(&d));
+    }
+
+    #[test]
+    fn binary_content_not_text() {
+        let mut data = vec![0u8; 8192];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 13 + 3) % 256) as u8;
+        }
+        assert!(!looks_like_text(&data));
+        assert!(script_indicators(&data).is_empty());
+    }
+
+    #[test]
+    fn text_content_is_text() {
+        let script = b"$x = powershell -EncodedCommand abcdef\nWrite-Host hello\n";
+        assert!(looks_like_text(script));
+        assert!(script_indicators(script)
+            .iter()
+            .any(|s| s.contains("encoded")));
+    }
+
+    #[test]
+    fn short_enc_in_binary_does_not_raise_script_score() {
+        let mut data = vec![0u8; 4096];
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 251) as u8;
+        }
+        data[100..105].copy_from_slice(b"-enc ");
+        let pe = PeInfo {
+            is_pe: false,
+            imports: Vec::new(),
+            has_overlay: false,
+        };
+        let (score, reasons) = score_file("C:/x/lib.dll", &data, &pe);
+        // entropy tinggi boleh menambah skor, tapi TIDAK BOLEH ada alasan script
+        assert!(
+            !reasons
+                .iter()
+                .any(|r| r.contains("encoded") || r.contains("PowerShell")),
+            "binary dengan '-enc ' tidak boleh terflag script: {:?}",
+            reasons
+        );
+        assert!(
+            score < 30,
+            "tanpa alasan script, binary acak tidak boleh CURIGA: {:?}",
+            reasons
+        );
     }
 
     #[test]
