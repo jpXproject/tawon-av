@@ -86,10 +86,20 @@ wscript.exe "scripts\Start Tawon Monitor.vbs"
 # 2. Auto-start saat login: taruh "Start Tawon Monitor.vbs" (atau shortcut-nya)
 #    di folder Startup:
 #    shell:startup
-
-# 3. Ubah interval & folder pantauan:
-#    %USERPROFILE%\.tawon\monitor.conf   contoh:  interval = 60
 ```
+
+**Konfigurasi** (`%USERPROFILE%\.tawon\monitor.conf`) — interval bisa beda per folder:
+
+```ini
+interval = 30                        # interval default (menit)
+C:\Users\kamu\Downloads              # pakai interval default
+C:\Users\kamu\Desktop = 10           # scan tiap 10 menit
+C:\Users\kamu\Documents = 60         # scan tiap 60 menit
+```
+
+Monitor berdetak tiap 60 detik dan hanya men-scan folder yang sudah jatuh
+tempo — jadi `Desktop` bisa dipantau ketat sementara `Documents` cukup dicek
+per jam.
 
 File: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (launcher tersembunyi) · `docs/tawon.ico` + `docs/tawon-warn.ico` (ikon).
 

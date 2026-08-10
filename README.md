@@ -87,10 +87,18 @@ wscript.exe "scripts\Start Tawon Monitor.vbs"
 # 2. Auto-start at login: place "Start Tawon Monitor.vbs" (or a shortcut to it)
 #    in the Startup folder:
 #    shell:startup
-
-# 3. Edit interval & watched folders:
-#    %USERPROFILE%\.tawon\monitor.conf   e.g.  interval = 60
 ```
+
+**Config** (`%USERPROFILE%\.tawon\monitor.conf`) — per-folder intervals:
+
+```ini
+interval = 30                        # default interval (minutes)
+C:\Users\you\Downloads               # uses the default interval
+C:\Users\you\Desktop = 10            # scans every 10 min
+C:\Users\you\Documents = 60          # scans every 60 min
+```
+
+The monitor ticks every 60 seconds and scans only the folders whose interval is due — so `Desktop` can be watched closely while `Documents` is checked hourly.
 
 Files: `scripts/TawonTray.ps1` (monitor) · `scripts/Start Tawon Monitor.vbs` (hidden launcher) · `docs/tawon.ico` + `docs/tawon-warn.ico` (icons).
 
